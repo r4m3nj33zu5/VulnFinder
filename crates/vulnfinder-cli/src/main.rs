@@ -101,22 +101,28 @@ async fn run_scan(args: ScanArgs) -> Result<()> {
         concurrency: args.concurrency,
     };
 
-    let interactive = io::stdout().is_terminal() && !args.no_ui;
-    let (tx, rx) = mpsc::unbounded_channel();
-    let ui_state = Arc::new(Mutex::new(UiState::default()));
-
-    let ui_task = if interactive {
-        tokio::spawn(run_tui(rx, ui_state.clone()))
+    let interactive = io::stdout().is_terminal() && !args.no_ui && !args.json;
+    let (scan_events_tx, ui_task) = if args.json {
+        (None, None)
     } else {
-        tokio::spawn(async move {
-            run_plain_progress(rx).await;
-            Ok(())
-        })
+        let (tx, rx) = mpsc::unbounded_channel();
+        let task = if interactive {
+            let ui_state = Arc::new(Mutex::new(UiState::default()));
+            tokio::spawn(run_tui(rx, ui_state))
+        } else {
+            tokio::spawn(async move {
+                run_plain_progress(rx).await;
+                Ok(())
+            })
+        };
+        (Some(tx), Some(task))
     };
 
-    let scan_results = scan_targets(targets, ports, config, Some(tx)).await;
+    let scan_results = scan_targets(targets, ports, config, scan_events_tx).await;
 
-    let _ = ui_task.await;
+    if let Some(task) = ui_task {
+        let _ = task.await;
+    }
 
     let report = build_report(&scan_results, |product, version| {
         cve_db.match_service(product, version)

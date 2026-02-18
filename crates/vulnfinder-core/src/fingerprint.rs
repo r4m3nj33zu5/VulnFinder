@@ -70,7 +70,8 @@ async fn ssh_fingerprint(target: &str, port: u16, timeout_ms: u64) -> Option<Ser
     let version = banner_trimmed
         .split('-')
         .nth(2)
-        .map(|v| v.split_whitespace().next().unwrap_or(v).to_string());
+        .and_then(|v| v.split_whitespace().next())
+        .and_then(normalize_ssh_version);
 
     Some(ServiceFingerprint {
         service: "ssh".to_string(),
@@ -174,6 +175,31 @@ async fn tls_fingerprint(target: &str, port: u16, timeout_ms: u64) -> Option<Ser
         .flatten()
 }
 
+fn normalize_ssh_version(raw: &str) -> Option<String> {
+    let mut version = raw.trim();
+    if let Some((_, suffix)) = version.rsplit_once('_') {
+        version = suffix;
+    }
+
+    let (numeric, patch) = match version.split_once('p') {
+        Some((base, patch_part)) => (base, patch_part),
+        None => (version, "0"),
+    };
+
+    let mut parts = numeric.split('.');
+    let major = parts.next()?;
+    let minor = parts.next().unwrap_or("0");
+
+    if !major.chars().all(|c| c.is_ascii_digit())
+        || !minor.chars().all(|c| c.is_ascii_digit())
+        || !patch.chars().all(|c| c.is_ascii_digit())
+    {
+        return None;
+    }
+
+    Some(format!("{major}.{minor}.{patch}"))
+}
+
 fn parse_product_version(raw: &str) -> (Option<String>, Option<String>) {
     if raw.is_empty() {
         return (None, None);
@@ -189,4 +215,21 @@ fn parse_product_version(raw: &str) -> (Option<String>, Option<String>) {
 
 fn truncate(value: &str) -> String {
     value.chars().take(MAX_EVIDENCE).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_ssh_version;
+
+    #[test]
+    fn normalizes_openssh_banner_versions_for_semver_matching() {
+        assert_eq!(
+            normalize_ssh_version("OpenSSH_8.4p1"),
+            Some("8.4.1".to_string())
+        );
+        assert_eq!(
+            normalize_ssh_version("OpenSSH_9.7"),
+            Some("9.7.0".to_string())
+        );
+    }
 }
