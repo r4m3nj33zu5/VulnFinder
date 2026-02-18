@@ -1,0 +1,38 @@
+[
+  {
+    "product": "OpenSSH",
+    "version_range": ">=8.0.0,<8.9.0",
+    "cve_id": "CVE-2021-41617",
+    "cvss": 7.0,
+    "summary": "Privilege separation configuration issue in specific OpenSSH server versions.",
+    "references": [
+      "https://nvd.nist.gov/vuln/detail/CVE-2021-41617",
+      "https://www.openssh.com/releasenotes.html"
+    ],
+    "remediation": "Upgrade OpenSSH to a vendor-supported patched release and review sshd privilege separation settings."
+  },
+  {
+    "product": "nginx",
+    "version_range": ">=1.18.0,<1.20.1",
+    "cve_id": "CVE-2021-23017",
+    "cvss": 7.7,
+    "summary": "Resolver off-by-one vulnerability affecting DNS response processing.",
+    "references": [
+      "https://nvd.nist.gov/vuln/detail/CVE-2021-23017",
+      "https://nginx.org/en/security_advisories.html"
+    ],
+    "remediation": "Upgrade to patched nginx versions and restrict resolver trust boundaries."
+  },
+  {
+    "product": "Apache",
+    "version_range": ">=2.4.49,<2.4.51",
+    "cve_id": "CVE-2021-41773",
+    "cvss": 7.5,
+    "summary": "Path normalization flaw in Apache HTTP Server 2.4.49 and some 2.4.50 deployments.",
+    "references": [
+      "https://nvd.nist.gov/vuln/detail/CVE-2021-41773",
+      "https://httpd.apache.org/security/vulnerabilities_24.html"
+    ],
+    "remediation": "Upgrade Apache HTTP Server to 2.4.51 or later and enforce hardened path handling controls."
+  }
+]
