@@ -74,6 +74,13 @@ struct JsonOutput {
     report: ScanReport,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProgressMode {
+    None,
+    Tui,
+    Plain,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -101,12 +108,12 @@ async fn run_scan(args: ScanArgs) -> Result<()> {
         concurrency: args.concurrency,
     };
 
-    let interactive = io::stdout().is_terminal() && !args.no_ui && !args.json;
-    let (scan_events_tx, ui_task) = if args.json {
+    let progress_mode = select_progress_mode(args.json, args.no_ui, io::stdout().is_terminal());
+    let (scan_events_tx, ui_task) = if progress_mode == ProgressMode::None {
         (None, None)
     } else {
         let (tx, rx) = mpsc::unbounded_channel();
-        let task = if interactive {
+        let task = if progress_mode == ProgressMode::Tui {
             let ui_state = Arc::new(Mutex::new(UiState::default()));
             tokio::spawn(run_tui(rx, ui_state))
         } else {
@@ -143,6 +150,16 @@ async fn run_scan(args: ScanArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn select_progress_mode(json: bool, no_ui: bool, stdout_is_tty: bool) -> ProgressMode {
+    if json {
+        ProgressMode::None
+    } else if stdout_is_tty && !no_ui {
+        ProgressMode::Tui
+    } else {
+        ProgressMode::Plain
+    }
 }
 
 async fn run_plain_progress(mut rx: mpsc::UnboundedReceiver<ScanEvent>) {
@@ -258,4 +275,26 @@ async fn run_tui(
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{select_progress_mode, ProgressMode};
+
+    #[test]
+    fn json_mode_never_emits_progress_updates() {
+        assert_eq!(select_progress_mode(true, false, true), ProgressMode::None);
+        assert_eq!(select_progress_mode(true, false, false), ProgressMode::None);
+        assert_eq!(select_progress_mode(true, true, true), ProgressMode::None);
+    }
+
+    #[test]
+    fn tui_requires_tty_and_ui_enabled() {
+        assert_eq!(select_progress_mode(false, false, true), ProgressMode::Tui);
+        assert_eq!(select_progress_mode(false, true, true), ProgressMode::Plain);
+        assert_eq!(
+            select_progress_mode(false, false, false),
+            ProgressMode::Plain
+        );
+    }
 }

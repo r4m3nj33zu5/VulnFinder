@@ -67,11 +67,7 @@ async fn ssh_fingerprint(target: &str, port: u16, timeout_ms: u64) -> Option<Ser
     if !banner_trimmed.starts_with("SSH-") {
         return None;
     }
-    let version = banner_trimmed
-        .split('-')
-        .nth(2)
-        .and_then(|v| v.split_whitespace().next())
-        .and_then(normalize_ssh_version);
+    let version = parse_ssh_banner_version(banner_trimmed);
 
     Some(ServiceFingerprint {
         service: "ssh".to_string(),
@@ -200,6 +196,14 @@ fn normalize_ssh_version(raw: &str) -> Option<String> {
     Some(format!("{major}.{minor}.{patch}"))
 }
 
+fn parse_ssh_banner_version(banner: &str) -> Option<String> {
+    banner
+        .split('-')
+        .nth(2)
+        .and_then(|v| v.split_whitespace().next())
+        .and_then(normalize_ssh_version)
+}
+
 fn parse_product_version(raw: &str) -> (Option<String>, Option<String>) {
     if raw.is_empty() {
         return (None, None);
@@ -219,7 +223,7 @@ fn truncate(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_ssh_version;
+    use super::{normalize_ssh_version, parse_ssh_banner_version};
 
     #[test]
     fn normalizes_openssh_banner_versions_for_semver_matching() {
@@ -230,6 +234,14 @@ mod tests {
         assert_eq!(
             normalize_ssh_version("OpenSSH_9.7"),
             Some("9.7.0".to_string())
+        );
+    }
+
+    #[test]
+    fn extracts_and_normalizes_version_from_ssh_banner() {
+        assert_eq!(
+            parse_ssh_banner_version("SSH-2.0-OpenSSH_8.4p1 Ubuntu-5ubuntu1.8"),
+            Some("8.4.1".to_string())
         );
     }
 }
