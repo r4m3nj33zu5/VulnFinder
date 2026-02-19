@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
-use clap::{Args, Parser, Subcommand};
+use clap::{error::ErrorKind, Args, CommandFactory, Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode};
+use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use crossterm::{execute, terminal};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, Paragraph};
@@ -57,8 +57,6 @@ struct ScanArgs {
     cve_db: PathBuf,
     #[arg(long)]
     no_ui: bool,
-    #[arg(long)]
-    i_own_or_am_authorized: bool,
 }
 
 #[derive(Default, Clone)]
@@ -76,18 +74,50 @@ struct JsonOutput {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = parse_cli_or_exit();
     match cli.command {
         Commands::Scan(args) => run_scan(args).await,
     }
 }
 
+fn parse_cli_or_exit() -> Cli {
+    match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            eprintln!("{err}");
+            match err.kind() {
+                ErrorKind::UnknownArgument => {
+                    eprintln!(
+                        "Hint: run 'vulnfinder scan --help' to see valid scan flags and examples."
+                    );
+                }
+                ErrorKind::InvalidValue => {
+                    eprintln!(
+                        "Hint: check numeric ranges (for example --timeout-ms >= 1 and --concurrency >= 1)."
+                    );
+                }
+                ErrorKind::MissingRequiredArgument | ErrorKind::MissingSubcommand => {
+                    eprintln!(
+                        "Hint: usage is 'vulnfinder scan <target> [--ports \"22,80\" | --ports-file ports.txt]'."
+                    );
+                }
+                _ => {}
+            }
+
+            let mut cmd = Cli::command();
+            let _ = cmd.print_help();
+            eprintln!();
+            std::process::exit(2);
+        }
+    }
+}
+
 async fn run_scan(args: ScanArgs) -> Result<()> {
-    if !args.i_own_or_am_authorized {
-        eprintln!(
-            "Refusing to scan. You must explicitly confirm authorization with --i-own-or-am-authorized"
-        );
-        std::process::exit(2);
+    if args.timeout_ms == 0 {
+        anyhow::bail!("invalid --timeout-ms value 0: expected a value >= 1")
+    }
+    if args.concurrency == 0 {
+        anyhow::bail!("invalid --concurrency value 0: expected a value >= 1")
     }
 
     let targets = parse_targets(&args.target).context("unable to parse target")?;
