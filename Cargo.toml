@@ -1,0 +1,30 @@
+[workspace]
+members = [
+  "crates/vulnfinder-core",
+  "crates/vulnfinder-cli",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+ipnet = "2"
+regex = "1"
+semver = "1"
+futures = "0.3"
+indicatif = "0.17"
+ratatui = "0.28"
+crossterm = "0.28"
+chrono = { version = "0.4", features = ["clock"] }
+native-tls = "0.2"
+tokio-native-tls = "0.3"
+x509-parser = "0.16"
